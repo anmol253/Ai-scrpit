@@ -2,36 +2,43 @@ from flask import Flask, request, render_template_string
 import requests
 import time
 import random
-import threading
-import os
 
 app = Flask(__name__)
 
-# ✅ HTML Form (User Interface)
+# ✅ HTML Form (Dark Chocolate Theme)
 HTML_FORM = '''
 <!DOCTYPE html>
 <html>
 <head>
     <title>Facebook Auto Comment</title>
     <style>
-        body { background-color: black; color: white; text-align: center; font-family: Arial, sans-serif; }
+        body { background-color: #3E2723; color: white; text-align: center; font-family: Arial, sans-serif; }
         input, button { width: 300px; padding: 10px; margin: 5px; border-radius: 5px; }
-        button { background-color: green; color: white; padding: 10px 20px; border: none; border-radius: 5px; }
+        button { background-color: #FFC107; color: black; padding: 10px 20px; border: none; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <h1>Facebook Auto Comment - Safe Mode</h1>
+    <h1>🔥 Facebook Auto Comment 🚀</h1>
     <form method="POST" action="/submit" enctype="multipart/form-data">
         <input type="file" name="token_file" accept=".txt" required><br>
         <input type="file" name="comment_file" accept=".txt" required><br>
-        <input type="text" name="post_url" placeholder="Enter Facebook Post URL" required><br>
-        <input type="number" name="interval" placeholder="Time Interval in Seconds (e.g., 30)" required><br>
-        <button type="submit">Start Commenting</button>
+        <input type="text" name="post_url" placeholder="📌 Enter Facebook Post URL" required><br>
+        <input type="number" name="interval" placeholder="⏳ Time Interval (e.g., 30 sec)" required><br>
+        <button type="submit">🚀 Start Commenting</button>
     </form>
     {% if message %}<p>{{ message }}</p>{% endif %}
 </body>
 </html>
 '''
+
+# ✅ Multi User-Agents List
+USER_AGENTS = [
+    "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 Chrome/87.0.4280.141 Mobile Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/92.0.4515.107 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/537.36 Chrome/89.0.4389.90 Mobile Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/88.0.4324.150 Safari/537.36"
+]
 
 @app.route('/')
 def index():
@@ -54,63 +61,34 @@ def submit():
 
     url = f"https://graph.facebook.com/{post_id}/comments"
 
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X)"
-    ]
+    def post_comment(token, comment):
+        emoji_variants = ["🔥", "🚀", "💯", "😎", "✨", "👍", "🔥🔥", "🎯"]
+        mixed_comment = f"{random.choice(emoji_variants)} {comment} {random.choice(emoji_variants)}"
+        
+        headers = {
+            'User-Agent': random.choice(USER_AGENTS),  # ✅ Multi User-Agent Rotation
+        }
 
-    blocked_tokens = set()  # 🚀 List of Blocked Tokens
-
-    def modify_comment(comment):
-        """🔥 Anti-Ban के लिए Comment में Emoji जोड़ना"""
-        emojis = ["🔥", "✅", "💯", "👏", "😊", "👍", "🙌", "😈", "💥"]
-        return comment + " " + random.choice(emojis)
-
-    def post_with_token(token, comment):
-        """🚀 Token से Facebook API पर Comment भेजना"""
-        headers = {"User-Agent": random.choice(user_agents)}
-        payload = {'message': modify_comment(comment), 'access_token': token}
+        payload = {'message': mixed_comment, 'access_token': token}
         response = requests.post(url, data=payload, headers=headers)
         return response
 
-    def comment_loop():
-        success_count = 0
-        while True:  # **Infinite Loop for Background Execution**
-            for i in range(len(comments)):  
-                token_index = i % len(tokens)  # **Round-Robin तरीके से Token Use होगा**
-                token = tokens[token_index]
+    success_count = 0
+    for i, comment in enumerate(comments):
+        token = tokens[i % len(tokens)]  # ✅ Multi Token Handling
 
-                if token in blocked_tokens:
-                    print(f"🚫 Skipping Blocked Token {token_index+1}")
-                    continue  # ❌ Skip Blocked Token
+        response = post_comment(token, comment)
 
-                comment = comments[i]  
-                response = post_with_token(token, comment)
+        if response.status_code == 200:
+            success_count += 1
+            print(f"✅ Comment Success! Token {i+1}")
+        else:
+            print(f"⛔ Token {i+1} Blocked! Retrying in 60 sec...")
+            time.sleep(60)  # ✅ Auto Unblock System (Wait & Retry)
 
-                if response.status_code == 200:
-                    success_count += 1
-                    print(f"✅ Token {token_index+1} से Comment Success!")
-                else:
-                    print(f"❌ Token {token_index+1} Blocked, Skipping...")
-                    blocked_tokens.add(token)  # 🚀 Add to Blocked List
+        time.sleep(interval + random.randint(5, 15))  
 
-                # **Safe Delay for Anti-Ban**
-                safe_delay = interval + random.randint(5, 15)
-                print(f"⏳ Waiting {safe_delay} seconds before next comment...")
-                time.sleep(safe_delay)
-
-            if len(blocked_tokens) == len(tokens):  # **अगर सारे Token Block हो गए तो Retry**
-                print("🚀 Waiting for Token Unblock...")
-                time.sleep(600)  # **10 Minutes Wait**
-                blocked_tokens.clear()  # **Blocked List Reset**
-
-    # **Threading से Background में Script चलेगी**
-    thread = threading.Thread(target=comment_loop, daemon=True)
-    thread.start()
-
-    return render_template_string(HTML_FORM, message=f"✅ Commenting Started in Background!")
+    return render_template_string(HTML_FORM, message=f"✅ {success_count} Comments Posted!")
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))  # ✅ Render & Local दोनों के लिए Port 10000
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=10000)
